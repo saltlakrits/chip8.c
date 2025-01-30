@@ -1,12 +1,12 @@
 CC=clang
-OUT = emu
-CFLAGS=-Isrc/ -O0 -g
+OUT = emu_sdl
+CFLAGS=-Isrc/ -O0 -g -Wall -Wextra -fwrapv
 SRCDIR = src/
 #OBJDIR = .obj/
 CFILES = $(wildcard $(SRCDIR)*.c)
 OBJS = $(CFILES:.c=.o)
 
-LDLIBS = -lnotcurses -lnotcurses-core
+LDLIBS = -lSDL3
 #@mkdir -p .obj
 
 
