@@ -123,7 +123,8 @@ int main(int argc, char **args) {
 
   /* create window and renderer (opengl by default) at once, maybe got syntax
   wrong, weird to pass address of pointers */
-  SDL_CreateWindowAndRenderer("C8.c", 800, 600, 0, &window, &renderer);
+  SDL_CreateWindowAndRenderer("C8.c", 1920, 1080, SDL_WINDOW_FULLSCREEN,
+                              &window, &renderer);
   SDL_Surface *surface = SDL_CreateSurface(64, 32, SDL_PIXELFORMAT_RGBA32);
   SDL_ClearSurface(surface, 0., 0., 0., 1.);
 
@@ -178,19 +179,18 @@ int main(int argc, char **args) {
   uint8_t read_byte = 0;
   while (counter < 4096) {
     read_byte = fgetc(f);
-    printf("byte: 0x%X -> mem[%d]\n", read_byte, counter);
+    // printf("byte: 0x%X -> mem[%d]\n", read_byte, counter);
     mem[counter] = read_byte;
     counter++;
   }
   fclose(f);
-  printf("\nDEBUG: Binary successfully loaded into memory! -- File closed.\n");
+  // printf("\nDEBUG: Binary successfully loaded into memory! -- File
+  // closed.\n");
 
   /* Main emulator loop:
            - Fetch instruction from memory at current pc
            - Decode instruction to figure out what to do
-           - Execute instruction
-           TODO need to delay this appropriately, to match the hardware of the
-     time -- runs at full speed (way, way too fast) currently */
+           - Execute instruction */
 
   uint16_t instruction = 0;
   uint8_t first_nibble = 0;
@@ -262,13 +262,14 @@ int main(int argc, char **args) {
       case 0x0:
         /* Clear display */
         SDL_ClearSurface(surface, 0., 0., 0., 1.);
-        SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-        /* I think I need to set the scale mode every single time */
-        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
-        SDL_RenderTexture(renderer, texture, NULL, NULL);
-        SDL_RenderPresent(renderer);
-        /* Free it! */
-        SDL_DestroyTexture(texture);
+        // SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer,
+        // surface);
+        // /* I think I need to set the scale mode every single time */
+        // SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+        // SDL_RenderTexture(renderer, texture, NULL, NULL);
+        // SDL_RenderPresent(renderer);
+        // /* Free it! */
+        // SDL_DestroyTexture(texture);
         break;
 
       case 0xE:
@@ -332,40 +333,72 @@ int main(int argc, char **args) {
       case 0x1:
         // set VX to (VX | VY)
         *x_reg = (*x_reg | *y_reg);
+        reg[0xF] = 0; // Original behaviour
         break;
       case 0x2:
         // set VX to (VX & VY)
         *x_reg = (*x_reg & *y_reg);
+        reg[0xF] = 0; // Original behaviour
         break;
       case 0x3:
         // set VX to (VX ^ VY)
         *x_reg = (*x_reg ^ *y_reg);
+        reg[0xF] = 0; // Original behaviour
         break;
       case 0x4:
         /* add VY to VX, VY unaffected
          should set VF if VX overflows */
-        reg[0xF] = (*x_reg + *y_reg > 255 ? 1 : 0);
-        *x_reg += *y_reg;
+        if (*x_reg + *y_reg > 255) {
+          *x_reg += *y_reg;
+          reg[0xF] = 1;
+        } else {
+          *x_reg += *y_reg;
+          reg[0xF] = 0;
+        }
         break;
       case 0x5:
         // VX = VX - VY
-        reg[0xF] = (*x_reg > *y_reg ? 1 : 0);
-        *x_reg = *x_reg - *y_reg;
+        if (*x_reg >= *y_reg) {
+          *x_reg = *x_reg - *y_reg;
+          reg[0xF] = 1;
+        } else {
+          *x_reg = *x_reg - *y_reg;
+          reg[0xF] = 0;
+        }
         break;
       case 0x6:
-        // FIXME AMBIGUOUS, modern for now
-        // shift VX right
-        *x_reg >>= 1;
+        // FIXME AMBIGUOUS, original for now
+        // VY into VX, then shift VX right
+        *x_reg = *y_reg;
+        if (*x_reg & 0x1) {
+          *x_reg >>= 1;
+          reg[0xF] = 1;
+        } else {
+          *x_reg >>= 1;
+          reg[0xF] = 0;
+        }
         break;
       case 0x7:
         // VX = VY - VX
-        reg[0xF] = (*y_reg > *x_reg ? 1 : 0);
-        *x_reg = *y_reg - *x_reg;
+        if (*y_reg >= *x_reg) {
+          *x_reg = *y_reg - *x_reg;
+          reg[0xF] = 1;
+        } else {
+          *x_reg = *y_reg - *x_reg;
+          reg[0xF] = 0;
+        }
         break;
       case 0xE:
-        // FIXME AMBIGUOUS, modern for now
-        // shift VX left
-        *x_reg <<= 1;
+        // FIXME AMBIGUOUS, original for now
+        // VY into VX, then shift VX left
+        *x_reg = *y_reg;
+        if (*x_reg & 0x80) {
+          *x_reg <<= 1;
+          reg[0xF] = 1;
+        } else {
+          *x_reg <<= 1;
+          reg[0xF] = 0;
+        }
         break;
 
       default:
@@ -400,13 +433,13 @@ int main(int argc, char **args) {
     case 0xD:
       /* Drawing, see function for info */
       reg[0xF] = draw(surface, *x_reg, *y_reg, number, &mem[ind]);
-      SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
-      /* I think I need to set the scale mode every single time */
-      SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
-      SDL_RenderTexture(renderer, texture, NULL, NULL);
-      SDL_RenderPresent(renderer);
-      /* Free it! */
-      SDL_DestroyTexture(texture);
+      // SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+      // /* I think I need to set the scale mode every single time */
+      // SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+      // SDL_RenderTexture(renderer, texture, NULL, NULL);
+      // SDL_RenderPresent(renderer);
+      // /* Free it! */
+      // SDL_DestroyTexture(texture);
       break;
 
     case 0xE:
@@ -462,8 +495,13 @@ int main(int argc, char **args) {
       case 0x1E:
         /* add VX to index, sets non-standard "overflow" flag but should be
            safe, see "Add to index" in the guide */
-        reg[0xF] = (((ind + *x_reg) > 0xFFF) ? 1 : 0);
-        ind = (ind + *x_reg) & 0xFFF;
+        if ((ind + *x_reg) > 0xFFF) {
+          ind = (ind + *x_reg) & 0xFFF;
+          reg[0xF] = 1;
+        } else {
+          ind = (ind + *x_reg) & 0xFFF;
+          reg[0xF] = 0;
+        }
         break;
 
       case 0x0A:
@@ -507,26 +545,28 @@ int main(int argc, char **args) {
       case 0x55:
         /* Store registers V0 through VX (inclusive) to memory, starting at
         ind */
-        printf("0xFX55 instruction, *x_reg is: %d\nind is 0x%X\n", *x_reg, ind);
-        for (int i = 0; i <= *x_reg; i++) {
-          puts("inside loop!");
+        // printf("0xFX55 instruction, *x_reg is: %d\nind is 0x%X\n", *x_reg,
+        // ind);
+        for (int i = 0; i <= second_nibble; i++) {
+          // puts("inside loop!");
           // if (i > 15) {
           //   printf("x_reg = %p, *x_reg = %d\n", x_reg, *x_reg);
           // }
-          mem[(ind) & 0xFFF] = reg[i];
-          // ind++; // non-modern style
+          mem[ind] = reg[i];
+          ind = (ind + 1) & 0xFFF;
         }
         break;
 
       case 0x65:
         // Opposite of last, loads registers from memory
 
-        printf("0xFX65 instruction, *x_reg is: %d\n", *x_reg);
+        // printf("0xFX65 instruction, *x_reg is: %d\n", *x_reg);
         for (int i = 0; i <= second_nibble; i++) {
-          printf("inside 0xFX65; ind = %X, i = %d, saving reg[%d] -> mem[%X]\n",
-                 ind, i, i, ind);
-          reg[i] = mem[(ind + i) & 0xFFF];
-          // ind++; // non-modern style
+          // printf("inside 0xFX65; ind = %X, i = %d, saving reg[%d] ->
+          // mem[%X]\n",
+          // ind, i, i, ind);
+          reg[i] = mem[ind];
+          ind = (ind + 1) & 0xFFF;
         }
         break;
 
@@ -580,13 +620,21 @@ int main(int argc, char **args) {
         delay_time.tv_sec += 1;
         delay_time.tv_nsec -= 1e9;
       }
+
+      SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+      /* I think I need to set the scale mode every single time */
+      SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+      SDL_RenderTexture(renderer, texture, NULL, NULL);
+      SDL_RenderPresent(renderer);
+      /* Free it! */
+      SDL_DestroyTexture(texture);
     }
 
-    ins++;
-    if (ins == 317) {
-      puts("0xF165");
-    }
-    printf("DEBUG: Instruction #%lo, 0x%X\n", ins, instruction);
+    // ins++;
+    // if (ins == 317) {
+    //   puts("0xF165");
+    // }
+    // printf("DEBUG: Instruction #%lo, 0x%X\n", ins, instruction);
 
     /* LIMIT SPEED: roughly 700 instructions per second -> 1/700 seconds per
      * instruction */

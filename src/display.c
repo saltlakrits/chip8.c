@@ -5,6 +5,10 @@
 #define WIDTH 64
 #define HEIGHT 32
 
+// nice blue 87, 216, 255
+// nice green 130, 255, 128
+// nice dark 50,50,50 or 75,75,75
+
 /* Display pixels are on/off, so only write 1 or 0 */
 
 /* Draws to display. starts at x/y coords. nibble height is 0-15 (nibble).
@@ -16,8 +20,8 @@ uint8_t draw(SDL_Surface *surface, uint8_t x_coord, uint8_t y_coord,
              uint8_t nibble_height, uint8_t *sprite_ptr) {
 
   /* Starting positions should modulo */
-  x_coord = x_coord % (WIDTH - 1);
-  y_coord = y_coord % (HEIGHT - 1);
+  x_coord = x_coord % WIDTH;
+  y_coord = y_coord % HEIGHT;
 
   /* sprite_ptr points at first byte of several that make up a sprite,
      where each byte is a new horizontal line, on the next line vertically */
@@ -30,15 +34,15 @@ uint8_t draw(SDL_Surface *surface, uint8_t x_coord, uint8_t y_coord,
   uint8_t b;
 
   /* Coordinates + their offset */
-  uint8_t offset_x;
-  uint8_t offset_y;
+  uint8_t adjusted_x;
+  uint8_t adjusted_y;
 
   /* Result "boolean" int */
   uint8_t has_flipped = 0;
 
   for (int y_offset = 0; y_offset < nibble_height; y_offset++) {
-    offset_y = y_coord + y_offset;
-    if (offset_y >= HEIGHT) {
+    adjusted_y = y_coord + y_offset;
+    if (adjusted_y >= HEIGHT) {
       continue;
     }
 
@@ -49,22 +53,22 @@ uint8_t draw(SDL_Surface *surface, uint8_t x_coord, uint8_t y_coord,
     }
 
     for (int x_offset = 0; x_offset < 8; x_offset++) {
-      offset_x = x_coord + x_offset;
-      if (offset_x >= WIDTH) {
+      adjusted_x = x_coord + x_offset;
+      if (adjusted_x >= WIDTH) {
         continue;
       }
       if (pixel_arr[x_offset]) {
 
         /* has_flipped was checked HERE, which is faulty! */
-        SDL_ReadSurfacePixel(surface, offset_x, offset_y, &r, &g, &b, NULL);
-        if ((r | g | b) == 0) {
+        SDL_ReadSurfacePixel(surface, adjusted_x, adjusted_y, &r, &g, &b, NULL);
+        if ((r | g | g) == 0) {
           /* If pixel WAS off, flip to on */
-          SDL_WriteSurfacePixel(surface, offset_x, offset_y, 255, 255, 255,
+          SDL_WriteSurfacePixel(surface, adjusted_x, adjusted_y, 255, 255, 255,
                                 255);
         } else {
           /* If pixel WAS on, flip to off, also set return bool */
           has_flipped = 1;
-          SDL_WriteSurfacePixel(surface, offset_x, offset_y, 0, 0, 0, 255);
+          SDL_WriteSurfacePixel(surface, adjusted_x, adjusted_y, 0, 0, 0, 255);
         }
       }
     }
